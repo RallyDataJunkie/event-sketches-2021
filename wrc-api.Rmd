@@ -6,7 +6,6 @@ knitr::opts_chunk$set(fig.path = "images/wrc-api-")
 
 We can get rally details, timing and results data from the WRC live timing service JSON API.
 
-
 ## Current Season Rallies
 To start with, let's see what rallies are scheduled for the current, active season. The `jsonlite::fromJSON()` will retrieve a JSON (*JavaScript Object Notation*) file from a URL and attempt to unpack it into an *R* dataframe:
 
@@ -83,7 +82,7 @@ startlist %>% head()
 
 ### Leg Sections
 
-Within each leg, the itinerary provides information about each section (that is, each "loop") of the rally. This information is provided in form of a dataframe in a standard format. We can use the base *R* `do.call()` to call the `rbind()` function against each row of the dataframe and bind all the dataframes in a specified column into a single dataframe:
+Within each leg, the itinerary provides information about each section (that is, each "loop") of the rally. This information is retrieved in form of a dataframe in a standard format. We can use the base *R* `do.call()` to call the `rbind()` function against each row of the dataframe and bind all the dataframes in a specified column into a single dataframe:
 
 ```{r}
 sections = do.call(rbind, itinerary$itinerarySections)
@@ -95,11 +94,14 @@ In the sections dataframe we have one row per section. We notice again the prese
 
 ### Time Controls
 
-We can look up information about each time control from data provided as part of the itinerary lookup using the same trick as before to "unroll" the contents of each dataframe in a specified column into a single dataframe:
+We can look up information about each time control from data provided as part of the itinerary lookup using the same trick as before to "unroll" the contents of each dataframe in a specified column into a single dataframe.
+
+An alternative to the `do.call()` approach is to use a tidy approach and use the `dplyr::bind_rows()` function on the `sections$controls` column values via a pipe:
 
 ```{r}
 get_controls = function(sections){
-  do.call(rbind, sections$controls)
+  controls = sections$controls %>% bind_rows()
+  controls
 }
 
 controls = get_controls(sections)
@@ -107,13 +109,14 @@ controls = get_controls(sections)
 controls %>% head(2)
 ```
 
-## Stage Details
+### Stage Details
 
-We can pull also pull stage details from the dataframes contained in the `sections` dataframe from the itinerary lookup:
+We can pull stage details from the dataframes contained in the `sections` dataframe from the itinerary lookup:
 
 ```{r}
 get_stages = function(sections){
-  stages = do.call(rbind, sections$stages)
+  stages = sections$stages %>% bind_rows()
+  stages
 }
 
 stages = get_stages(sections)
@@ -171,6 +174,12 @@ entries = get_rally_entries(eventId)
 # $identifier, $vehicleModel, $eligibility, $status
 
 entries %>% head(2)
+```
+
+We can index the entries by group to find all the WRC car `entryId` values:
+
+```{r}
+entries[entries$group$name=='WRC', 'entryId']
 ```
 
 Detailed information for each driver and codriver can be found in the corresponding sub-dataframes.
@@ -260,7 +269,7 @@ get_car_data(entries) %>% head(2)
 
 ## Penalties and Retirements
 
-We can look up penalties from an event ID:
+We can look up *penalties* from an event ID:
 
 ```{r}
 get_penalties = function(eventId) {
@@ -272,7 +281,7 @@ get_penalties = function(eventId) {
 get_penalties(eventId) %>% head(2)
 ```
 
-The event ID is also all we need to request a list of retirements:
+The event ID is also all we need to request a list of *retirements*:
 
 ```{r}
 get_retirements = function(eventId) {
@@ -329,7 +338,9 @@ stage_times = get_stage_times(eventId, stageId)
 stage_times %>% head(2)
 ```
 
-### Getting Stage Times for Multiple Stages
+### Getting Long Stage Times for Multiple Stages
+
+It will be convenient to be able to retrieve stage times for multiple stages from one function call. One way of achieving that is to create a function to retrieve the details for a single specified stage that can be applied via a `purrr::map()` function call applied to the list of stage IDs we want results data for: 
 
 ```{r message=F, warning=F}
 library(purrr)
@@ -346,6 +357,9 @@ multi_stage_times = stagelist %>%
 
 multi_stage_times %>% tail(2)
 ```
+
+
+### Getting Wide Stage Times for Multiple Stages
 
 We can then widen the stage times for each driver:
 
@@ -368,6 +382,9 @@ multi_stage_times_wide = get_multi_stage_times_wide(multi_stage_times)
 
 multi_stage_times_wide %>% head(2)
 ```
+
+
+### Getting Wide Stage Positions
 
 We can also get the stage positions:
 

@@ -9,5 +9,7 @@ competitor-details
 penalties-and-retirements
 results-and-stage-winner
 stage-times
-getting-stage-times-for-multiple-stages
+getting-long-stage-times-for-multiple-stages
+getting-wide-stage-times-for-multiple-stages
+getting-wide-stage-positions
 split-times
