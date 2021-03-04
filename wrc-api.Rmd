@@ -293,7 +293,7 @@ get_retirements = function(eventId) {
 get_retirements(eventId) %>% head(2)
 ```
 
-## Results and Stage Winner`
+## Results and Stage Winner
 
 As well as retrieving penalties and retirements using just the event ID as a key, we can also retrieve the overall results and the stage winners:
 
@@ -420,8 +420,6 @@ get_splits = function(eventId, stageId){
 splits = get_splits(eventId, stageId)
 # $splitPoints
 # $entrySplitPointTimes
-
-colnames(splits)
 ```
 
 This includes handy information about split locations, such as distance into stage. This can also be useful for pace calculations:
@@ -430,11 +428,19 @@ This includes handy information about split locations, such as distance into sta
 splits$splitPoints
 ```
 
-View the split times for a driver by indexing into the dataframe. The driver `entryId` gives us an index into the driver data:
+We can also view the split point times for each driver:
+
+```{r}
+splits$entrySplitPointTimes %>% head(2)
+```
+
+To view the split times for a specific driver, we can index into the dataframe using the driver `entryId` value:
 
 ```{r}
 splits$entrySplitPointTimes[splits$entrySplitPointTimes['entryId']==ogierEntryId,]$splitPointTimes
 ```
+
+### Driver Split Times Detail
 
 We can get a flatter structure over all drivers, converting the elapsed duration in milliseconds to seconds along the way:
 
@@ -454,6 +460,8 @@ driver_splits = get_driver_splits(entry_splits)
 
 driver_splits %>% head(2)
 ```
+
+### Wide Driver Split Times
 
 We can cast the data into a wide format, with splits ordered by their distance into the stage:
 

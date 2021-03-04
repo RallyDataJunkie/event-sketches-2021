@@ -13,3 +13,5 @@ getting-long-stage-times-for-multiple-stages
 getting-wide-stage-times-for-multiple-stages
 getting-wide-stage-positions
 split-times
+driver-split-times-detail
+wide-driver-split-times
