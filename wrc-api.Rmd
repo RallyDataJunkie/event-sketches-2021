@@ -85,7 +85,12 @@ startlist %>% head()
 Within each leg, the itinerary provides information about each section (that is, each "loop") of the rally. This information is retrieved in form of a dataframe in a standard format. We can use the base *R* `do.call()` to call the `rbind()` function against each row of the dataframe and bind all the dataframes in a specified column into a single dataframe:
 
 ```{r}
-sections = do.call(rbind, itinerary$itinerarySections)
+get_sections = function(itinerary){
+  sections = do.call(rbind, itinerary$itinerarySections)
+  sections
+}
+
+sections = get_sections(itinerary)
 
 sections %>% head()
 ```
