@@ -1,0 +1,10 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# Introduction
+
+For fans of WRC, the live timing data screens as well as results from *ewrc-results.com* provide up-to-date information about timing and results over the course of an event weekend, as well as a historical results for the current season (WRC) as well as back into the mists of time (*ewrc-results*).
+
+In this recipe collection, I'll describe various ways of visualising WRC rally results and timing data using data retrieved from the WRC results API. Many of the techniques should also apply directly to data retreived from other services, such as *ewrc-results.com* if the data is appropriately represented.

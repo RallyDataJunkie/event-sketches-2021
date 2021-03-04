@@ -1,0 +1,6 @@
+delete_merged_file: false
+book_filename: 'rally-results_review.Rmd'
+view: https://github.com/RallyDataJunkie/rally-event-sketches-2021/blob/master/%s
+edit: https://github.com/RallyDataJunkie/rally-event-sketches-2021/edit/master/%s
+output_dir: "docs"
+rmd_files:  ["index.Rmd", "intro.Rmd", "wrc-api.Rmd"]

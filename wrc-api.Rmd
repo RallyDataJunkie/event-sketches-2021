@@ -1,0 +1,424 @@
+```{r cache = T, echo = F, message=F}
+knitr::opts_chunk$set(error = TRUE)
+knitr::opts_chunk$set(fig.path = "images/wrc-api-")
+```
+# Accessing Data from the WRC Live Timing API
+
+We can get rally details, timing and results data from the WRC live timing service JSON API.
+
+
+## Current Season Rallies
+To start with, let's see what rallies are scheduled for the current, active season:
+
+```{r message=F, warning=F}
+library(jsonlite)
+library(stringr)
+library(dplyr)
+
+get_active_season = function(active_season_url="https://api.wrc.com/contel-page/83388/calendar/active-season/") {
+  jsonlite::fromJSON(active_season_url)
+}
+
+s = get_active_season(active_season_url)$rallyEvents$items
+
+colnames(s)
+```
+
+Let's preview a couple of those columns:
+
+```{r}
+s %>% select(c('id', 'name')) %>% head()
+```
+
+We can search the *name* column to find the unique identifier value for a particular event:
+
+```{r}
+eventId = s[s['name']=='WRC Arctic Rally Finland Powered by CapitalBox','id']
+
+eventId
+```
+
+## Itinerary Lookup
+
+We can make another call to the WRC API to look up the itinerary for the event. Each leg of the event corresponds to a particular day:
+
+```{r}
+results_api = 'https://api.wrc.com/results-api'
+
+get_itinerary = function(eventId) {
+  jsonlite::fromJSON(paste0(results_api,"/rally-event/",
+                            eventId, "/itinerary"))$itineraryLegs
+}
+
+itinerary = get_itinerary(eventId)
+
+itinerary
+```
+
+The *startListId* can be used alongside the event ID to look up the startlist for a leg:
+
+```{r}
+get_startlist = function(eventId, startListId) {
+  startlist_url = paste0(results_api, '/rally-event/',
+                         eventId,'/start-list-external/',startListId)
+  startlist = jsonlite::fromJSON(startlist_url)$startListItems
+  startlist %>% arrange(order)
+}
+
+# Example startlist ID
+startListId = itinerary[str_detect(itinerary$name,
+                                   regex('Friday', ignore_case = T)),
+                       'startListId']
+
+startlist = get_startlist(eventId, startListId)
+
+startlist %>% head()
+```
+
+### Leg Sections
+
+Within each leg, the itinerary provides information about each section (that is, each "loop") of the rally. This information is provided in form of a dataframe in a standard format. We can use the base *R* `do.call()` to call the `rbind()` function against each row of the dataframe and bind all the dataframes in a specified column into a single dataframe:
+
+```{r}
+sections = do.call(rbind, itinerary$itinerarySections)
+
+sections %>% head()
+```
+
+In the sections dataframe we have one row per section. We notice again the presence of columns that use dataframes to "nest" subdataframes within each row relating to to timing controls and stages associated with each leg.
+
+### Time Controls
+
+We can look up information about each time control from data provided as part of the itinerary lookup using the same trick as before to "unroll" the contents of each dataframe in a specified column into a single dataframe:
+
+```{r}
+controls = do.call(rbind, sections$controls)
+
+controls %>% head(2)
+```
+
+## Stage Details
+
+We can pull also pull stage details from the dataframes contained in the `sections` dataframe from the itinerary lookup:
+
+```{r}
+stages = do.call(rbind, sections$stages)
+
+stages %>% head()
+```
+
+From the `stages` table, we can get the identifier for a particular stage, either by code (for example, *"SS3"*) or by (partial) name match:
+
+```{r}
+ssnum = 'SS3'
+
+get_stage_id = function(stages, sname, typ='code'){
+  # code, name
+  if (typ=='code')
+    stageId = stages[stages[typ] == sname, 'stageId']
+  else
+    stageId = stages[stringr::str_detect(stages[[typ]], sname), 'stageId']
+  stageId
+}
+
+stageId = get_stage_id(stages, 'Mustalampi 1', 'name')
+stageId
+```
+
+And the stage distance and name:
+
+```{r}
+get_stage_info = function(stages, sid, typ='stageId', clean=TRUE){
+  # stageId, code
+  name=stages[stages[typ] == sid, 'name']
+  distance=stages[stages[typ] == sid, 'distance']
+  if (clean)
+    stringr::str_replace(name, ' (Live TV)', '')
+  
+  c(name=name, distance=distance)
+}
+
+get_stage_info(stages, stageId)
+```
+
+## Competitor Details
+
+Details of car entries for each event can be retrieved from the WRC live timing API given an event ID.
+
+```{r}
+get_rally_entries = function(eventId) {
+  cars_url = paste0(results_api, '/rally-event/',
+                  eventId,'/cars')
+  jsonlite::fromJSON(cars_url)
+}
+
+entries = get_rally_entries(eventId)
+# $driver, $codriver, $manufacturer, $entrant, $group, $eventClasses
+# $identifier, $vehicleModel, $eligibility, $status
+
+entries %>% head(2)
+```
+
+Detailed information for each driver and codriver can be found in the corresponding sub-dataframes.
+
+For example, we can look up the details for each driver, noting in this case that we need to column bind (`cbind()`) the subdataframes to produce the collated dataframe of driver details:
+
+```{r}
+drivers = do.call(cbind, entries$driver)
+
+drivers %>% head()
+```
+
+We can similarly obtain data for the codrivers:
+
+```{r}
+#codrivers = do.call(cbind, entries$codriver)
+# Again, there is a tidyverse approach with dplyr::bind_cols()
+codrivers = bind_cols(entries$codriver)
+
+codrivers %>% head(2)
+```
+
+We can conveniently obtain the identifier for a particular driver or codriver by searching against their name or three letter code:
+
+```{r}
+get_person_id = function(drivers, sname, typ='fullName'){
+  # code, fullName
+  if (typ=='code')
+    driverId = drivers[drivers[typ]==sname, 'personId']
+  else
+    driverId = drivers[str_detect(drivers[[typ]],
+                                           regex(sname,
+                                                 ignore_case = T)),
+                       'personId']
+  driverId
+}
+
+ogierDriverId = get_person_id(drivers, 'ogier')
+ogierDriverId
+```
+
+From the driver person identifier we can get the entry identifier for the rally we're exploring:
+
+```{r}
+ogierEntryId  = entries[entries['driverId']==ogierDriverId, 'entryId']
+ogierEntryId
+```
+
+We can manually create a dataframe containing essential fields from the original cars dataframe and the dataframes contained within it:
+
+```{r}
+get_car_data = function(entries){
+  cols = c('entryId', 'driverId', 'codriverId','manufacturerId',
+           'vehicleModel','eligibility', 'classname','manufacturer',
+           'entrantname', 'groupname', 'drivername', 'code',
+           'driverfullname', 'codrivername','codriverfullname'
+           )
+  entries = entries %>%
+                        rowwise() %>% 
+                        mutate(classname = eventClasses$name) %>%
+                        mutate(manufacturer = manufacturer$name) %>%
+                        mutate(entrantname = entrant$name) %>%
+                        mutate(groupname = group$name) %>%
+                        mutate(drivername = driver$abbvName) %>%
+                        mutate(driverfullname = driver$fullName) %>%
+                        mutate(codrivername = codriver$abbvName) %>%
+                        mutate(codriverfullname = codriver$fullName) %>%
+                        mutate(code = driver$code) %>%
+                        select(all_of(cols))
+  
+  # If we don't cast, it's a non-rankable rowwise df
+  as.data.frame(entries)
+}
+
+get_car_data(entries) %>% head(2)
+```
+
+## Penalties and Retirements
+
+We can look up penalties from an event ID:
+
+```{r}
+get_penalties = function(eventId) {
+  penalties_url = paste0(results_api, '/rally-event/',
+                       eventId, '/penalties')
+  jsonlite::fromJSON(penalties_url)
+}
+
+get_penalties(eventId) %>% head(2)
+```
+
+The event ID is also all we need to request a list of retirements:
+
+```{r}
+get_retirements = function(eventId) {
+  retirements_url = paste0(results_api, '/rally-event/',
+                       eventId, '/retirements')
+  jsonlite::fromJSON(retirements_url)
+}
+
+get_retirements(eventId) %>% head(2)
+```
+
+## Results and Stage Winner`
+
+As well as retrieving penalties and retirements using just the event ID as a key, we can also retrieve the overall results and the stage winners:
+
+```{r}
+get_result = function(eventId) {
+  result_url = paste0(results_api, '/rally-event/',
+                    eventId,'/result')
+  
+  jsonlite::fromJSON(result_url)
+}
+
+get_result(eventId) %>% head(2)
+```
+
+And for the stage winners:
+
+```{r}
+get_stage_winners = function(eventId) {
+  stage_winners_url = paste0(results_api, '/rally-event/',
+                             eventId,'/stage-winners')
+  
+  jsonlite::fromJSON(stage_winners_url)
+}
+
+get_stage_winners(eventId) %>% head(2)
+```
+
+## Stage Times
+
+We can get the stage times for each stage on a rally by event and stage ID:
+
+```{r}
+get_stage_times = function(eventId, stageId) {
+  stage_times_url = paste0(results_api, '/rally-event/',
+                           eventId, '/stage-times/stage-external/',
+                           stageId)
+  jsonlite::fromJSON(stage_times_url)
+}
+
+stage_times = get_stage_times(eventId, stageId)
+
+stage_times %>% head(2)
+```
+
+### Getting Stage Times for Multiple Stages
+
+```{r message=F, warning=F}
+library(purrr)
+
+get_stage_times2 = function(stageId, eventId)
+                    get_stage_times(eventId, stageId)
+
+stagelist = c(1747,	1743)
+
+multi_stage_times = stagelist %>%
+                      map(get_stage_times2, eventId=eventId) %>% 
+                      bind_rows()
+
+multi_stage_times %>% tail(2)
+```
+
+We can then widen the stage times for each driver:
+
+```{r}
+stage_times_cols = c('entryId', 'stageId', 'elapsedDurationMs')
+
+multi_stage_times_wide = multi_stage_times %>% 
+                            select(all_of(stage_times_cols)) %>%
+                            mutate(elapsedDurationS = elapsedDurationMs / 1000) %>%
+                            select(-elapsedDurationMs) %>%
+                            group_by(entryId) %>%
+                            tidyr::spread(key = stageId,
+                                          value = elapsedDurationS) %>%
+                            select(c('entryId', as.character(stagelist)))
+
+multi_stage_times_wide %>% head(2)
+```
+
+We can also get the stage positions:
+
+```{r}
+stage_positions_cols = c('entryId', 'stageId', 'position')
+
+multi_stage_positions_wide = multi_stage_times %>% 
+                            select(all_of(stage_positions_cols)) %>%
+                            group_by(entryId) %>%
+                            tidyr::spread(key = stageId,
+                                          value = position) %>%
+                            select(c('entryId', as.character(stagelist)))
+
+multi_stage_positions_wide %>% head(2)
+```
+
+## Split Times
+
+We can get split times and distance into stage data for each stage given the stage identifier:
+
+```{r}
+get_splits = function(eventId, stageId){
+  splits_url=paste0(results_api, '/rally-event/', eventId,
+                    '/split-times/stage-external/', stageId)
+
+    jsonlite::fromJSON(splits_url)
+}
+
+splits = get_splits(eventId, stageId)
+# $splitPoints
+# $entrySplitPointTimes
+
+colnames(splits)
+```
+
+This includes handy information about split locations, such as distance into stage. This can also be useful for pace calculations:
+
+```{r}
+splits$splitPoints
+```
+
+View the split times for a driver by indexing into the dataframe. The driver `entryId` gives us an index into the driver data:
+
+```{r}
+splits$entrySplitPointTimes[splits$entrySplitPointTimes['entryId']==ogierEntryId,]$splitPointTimes
+```
+
+We can get a flatter structure over all drivers, converting the elapsed duration in milliseconds to seconds along the way:
+
+```{r}
+#driver_splits = do.call(rbind, entry_splits$splitPointTimes)
+# The tidyverse approach is to use dplyr::bind_rows()
+# We can also construct a pipe to streamline the processing
+driver_splits = entry_splits$splitPointTimes %>%
+                    bind_rows() %>%
+                    mutate(elapsedDurationS = elapsedDurationMs / 1000) %>%
+                    select(-elapsedDurationMs)
+
+driver_splits %>% head(2)
+```
+
+We can cast the data into a wide format, with splits ordered by their distance into the stage:
+
+```{r}
+split_cols =  as.character(arrange(splits$splitPoints,distance)$splitPointId)
+cols = c('entryId', 'splitPointId', 'elapsedDurationS')
+
+get_driver_splits_wide = function(driver_splits, split_cols){
+    driver_splits_wide = driver_splits %>% 
+                            group_by(entryId) %>%
+                            select(all_of(cols)) %>%
+                            tidyr::spread(key = splitPointId,
+                                          value = elapsedDurationS) %>%
+                            select(all_of(c('entryId', split_cols))) %>%
+                            # If we don't cast, it's a
+                            # non-rankable rowwise df
+                            as.data.frame()
+    driver_splits_wide
+}
+
+driver_splits_wide =  get_driver_splits_wide(driver_splits, split_cols)
+
+driver_splits_wide %>% head(2)
+```

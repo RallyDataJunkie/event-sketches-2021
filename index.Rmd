@@ -1,0 +1,10 @@
+---
+title: "Visualising WRC Rally Timing and Results Data"
+subtitle: "A RallyDataJunkie Adventure"
+author: "Tony Hirst"
+description: "An introduction to visualising timing and results data for WRC rally events."
+knit: "bookdown::render_book"
+site: bookdown::bookdown_site
+always_allow_html: yes
+new_session: no
+---
