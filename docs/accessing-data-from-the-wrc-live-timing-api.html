@@ -176,7 +176,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>We can get rally details, timing and results data from the WRC live timing service JSON API.</p>
 <div id="current-season-rallies" class="section level2" number="2.1">
 <h2><span class="header-section-number">2.1</span> Current Season Rallies</h2>
-<p>To start with, let’s see what rallies are scheduled for the current, active season:</p>
+<p>To start with, let’s see what rallies are scheduled for the current, active season. The <code>jsonlite::fromJSON()</code> will retrieve a JSON (<em>JavaScript Object Notation</em>) file from a URL and attempt to unpack it into an <em>R</em> dataframe:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(jsonlite)</span>
 <span id="cb1-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(stringr)</span>
 <span id="cb1-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
@@ -187,12 +187,14 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb1-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-9" aria-hidden="true" tabindex="-1"></a>s <span class="ot">=</span> <span class="fu">get_active_season</span>(active_season_url)<span class="sc">$</span>rallyEvents<span class="sc">$</span>items</span>
 <span id="cb1-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(s)</span></code></pre></div>
+<span id="cb1-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Preview the column names of the resulting dataframe</span></span>
+<span id="cb1-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(s)</span></code></pre></div>
 <pre><code>##  [1] &quot;id&quot;         &quot;name&quot;       &quot;active&quot;     &quot;jwrc&quot;       &quot;deleted&quot;   
 ##  [6] &quot;rally&quot;      &quot;status&quot;     &quot;pageInfo&quot;   &quot;pageResult&quot; &quot;eventDays&quot; 
 ## [11] &quot;winner&quot;</code></pre>
-<p>Let’s preview a couple of those columns:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb3-1" aria-hidden="true" tabindex="-1"></a>s <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="fu">c</span>(<span class="st">&#39;id&#39;</span>, <span class="st">&#39;name&#39;</span>)) <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
+<p>Let’s preview the contents of a couple of those columns:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The tidyr / magrittr pipe syntax makes things easier to read</span></span>
+<span id="cb3-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb3-2" aria-hidden="true" tabindex="-1"></a>s <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="fu">c</span>(<span class="st">&#39;id&#39;</span>, <span class="st">&#39;name&#39;</span>)) <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
 <pre><code>##     id                                           name
 ## 1 1695                         WRC Rallye Monte-Carlo
 ## 2 1745 WRC Arctic Rally Finland Powered by CapitalBox
@@ -231,22 +233,26 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## 1     1 Completed
 ## 2     2 Completed
 ## 3     3   Running</code></pre>
-<p>The <em>startListId</em> can be used alongside the event ID to look up the startlist for a leg:</p>
+<p>The <em>startListId</em> can be used alongside the event ID to look up the startlist for a leg. We can order the startlist by start order:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-1" aria-hidden="true" tabindex="-1"></a>get_startlist <span class="ot">=</span> <span class="cf">function</span>(eventId, startListId) {</span>
 <span id="cb9-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-2" aria-hidden="true" tabindex="-1"></a>  startlist_url <span class="ot">=</span> <span class="fu">paste0</span>(results_api, <span class="st">&#39;/rally-event/&#39;</span>,</span>
-<span id="cb9-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-3" aria-hidden="true" tabindex="-1"></a>                         eventId,<span class="st">&#39;/start-list-external/&#39;</span>,startListId)</span>
-<span id="cb9-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-4" aria-hidden="true" tabindex="-1"></a>  startlist <span class="ot">=</span> jsonlite<span class="sc">::</span><span class="fu">fromJSON</span>(startlist_url)<span class="sc">$</span>startListItems</span>
-<span id="cb9-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-5" aria-hidden="true" tabindex="-1"></a>  startlist <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(order)</span>
-<span id="cb9-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-6" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb9-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Example startlist ID</span></span>
-<span id="cb9-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-9" aria-hidden="true" tabindex="-1"></a>startListId <span class="ot">=</span> itinerary[<span class="fu">str_detect</span>(itinerary<span class="sc">$</span>name,</span>
-<span id="cb9-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-10" aria-hidden="true" tabindex="-1"></a>                                   <span class="fu">regex</span>(<span class="st">&#39;Friday&#39;</span>, <span class="at">ignore_case =</span> T)),</span>
-<span id="cb9-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-11" aria-hidden="true" tabindex="-1"></a>                       <span class="st">&#39;startListId&#39;</span>]</span>
-<span id="cb9-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-13" aria-hidden="true" tabindex="-1"></a>startlist <span class="ot">=</span> <span class="fu">get_startlist</span>(eventId, startListId)</span>
-<span id="cb9-14"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-15"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-15" aria-hidden="true" tabindex="-1"></a>startlist <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
+<span id="cb9-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-3" aria-hidden="true" tabindex="-1"></a>                         eventId,<span class="st">&#39;/start-list-external/&#39;</span>, startListId)</span>
+<span id="cb9-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb9-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-5" aria-hidden="true" tabindex="-1"></a>  startlist <span class="ot">=</span> jsonlite<span class="sc">::</span><span class="fu">fromJSON</span>(startlist_url)<span class="sc">$</span>startListItems</span>
+<span id="cb9-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-6" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb9-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Order the startlist dataframe by start order</span></span>
+<span id="cb9-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-8" aria-hidden="true" tabindex="-1"></a>  startlist <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(order)</span>
+<span id="cb9-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Example startlist ID</span></span>
+<span id="cb9-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Use a regular expression to find the startlist ID by day</span></span>
+<span id="cb9-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-13" aria-hidden="true" tabindex="-1"></a>startListId <span class="ot">=</span> itinerary[<span class="fu">str_detect</span>(itinerary<span class="sc">$</span>name,</span>
+<span id="cb9-14"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-14" aria-hidden="true" tabindex="-1"></a>                                   <span class="fu">regex</span>(<span class="st">&#39;Friday&#39;</span>, <span class="at">ignore_case =</span> T)),</span>
+<span id="cb9-15"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-15" aria-hidden="true" tabindex="-1"></a>                       <span class="st">&#39;startListId&#39;</span>]</span>
+<span id="cb9-16"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-17" aria-hidden="true" tabindex="-1"></a>startlist <span class="ot">=</span> <span class="fu">get_startlist</span>(eventId, startListId)</span>
+<span id="cb9-18"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb9-19" aria-hidden="true" tabindex="-1"></a>startlist <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
 <pre><code>##   startListItemId startListId entryId       startDateTime
 ## 1           24435         523   21530 2021-02-26T11:30:00
 ## 2           24409         523   21531 2021-02-26T11:33:00
@@ -293,9 +299,13 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="time-controls" class="section level3" number="2.2.2">
 <h3><span class="header-section-number">2.2.2</span> Time Controls</h3>
 <p>We can look up information about each time control from data provided as part of the itinerary lookup using the same trick as before to “unroll” the contents of each dataframe in a specified column into a single dataframe:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-1" aria-hidden="true" tabindex="-1"></a>controls <span class="ot">=</span> <span class="fu">do.call</span>(rbind, sections<span class="sc">$</span>controls)</span>
-<span id="cb13-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-3" aria-hidden="true" tabindex="-1"></a>controls <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-1" aria-hidden="true" tabindex="-1"></a>get_controls <span class="ot">=</span> <span class="cf">function</span>(sections){</span>
+<span id="cb13-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">do.call</span>(rbind, sections<span class="sc">$</span>controls)</span>
+<span id="cb13-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-3" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb13-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-5" aria-hidden="true" tabindex="-1"></a>controls <span class="ot">=</span> <span class="fu">get_controls</span>(sections)</span>
+<span id="cb13-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb13-7" aria-hidden="true" tabindex="-1"></a>controls <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##   controlId eventId stageId        type code                        location
 ## 1      7527     170      NA TimeControl  TC0 Start ( Santasport, Rovaniemi )
 ## 2      7564     170    1747 TimeControl  TC1                     Sarriojärvi
@@ -310,9 +320,13 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="stage-details" class="section level2" number="2.3">
 <h2><span class="header-section-number">2.3</span> Stage Details</h2>
 <p>We can pull also pull stage details from the dataframes contained in the <code>sections</code> dataframe from the itinerary lookup:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-1" aria-hidden="true" tabindex="-1"></a>stages <span class="ot">=</span> <span class="fu">do.call</span>(rbind, sections<span class="sc">$</span>stages)</span>
-<span id="cb15-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-3" aria-hidden="true" tabindex="-1"></a>stages <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-1" aria-hidden="true" tabindex="-1"></a>get_stages <span class="ot">=</span> <span class="cf">function</span>(sections){</span>
+<span id="cb15-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-2" aria-hidden="true" tabindex="-1"></a>  stages <span class="ot">=</span> <span class="fu">do.call</span>(rbind, sections<span class="sc">$</span>stages)</span>
+<span id="cb15-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-3" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb15-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-5" aria-hidden="true" tabindex="-1"></a>stages <span class="ot">=</span> <span class="fu">get_stages</span>(sections)</span>
+<span id="cb15-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb15-7" aria-hidden="true" tabindex="-1"></a>stages <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
 <pre><code>##   stageId eventId number                    name distance    status
 ## 1    1747     170      1 Sarriojärvi 1 (Live TV)    31.05 Completed
 ## 2    1743     170      2 Sarriojärvi 2 (Live TV)    31.05 Completed
@@ -409,9 +423,14 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## 2         33    Yaris WRC           M       P1    Entry             None</code></pre>
 <p>Detailed information for each driver and codriver can be found in the corresponding sub-dataframes.</p>
 <p>For example, we can look up the details for each driver, noting in this case that we need to column bind (<code>cbind()</code>) the subdataframes to produce the collated dataframe of driver details:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-1" aria-hidden="true" tabindex="-1"></a>drivers <span class="ot">=</span> <span class="fu">do.call</span>(cbind, entries<span class="sc">$</span>driver)</span>
-<span id="cb23-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-3" aria-hidden="true" tabindex="-1"></a>drivers <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-1" aria-hidden="true" tabindex="-1"></a>get_drivers <span class="ot">=</span> <span class="cf">function</span>(entries){</span>
+<span id="cb23-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-2" aria-hidden="true" tabindex="-1"></a>  drivers <span class="ot">=</span> <span class="fu">do.call</span>(cbind, entries<span class="sc">$</span>driver)</span>
+<span id="cb23-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-3" aria-hidden="true" tabindex="-1"></a>  drivers</span>
+<span id="cb23-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb23-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-6" aria-hidden="true" tabindex="-1"></a>drivers <span class="ot">=</span> <span class="fu">get_drivers</span>(entries)</span>
+<span id="cb23-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb23-8" aria-hidden="true" tabindex="-1"></a>drivers <span class="sc">%&gt;%</span> <span class="fu">head</span>()</span></code></pre></div>
 <pre><code>##   personId countryId country.countryId
 ## 1      670        76                76
 ## 2      534       235               235
@@ -436,9 +455,14 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>We can similarly obtain data for the codrivers:</p>
 <div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">#codrivers = do.call(cbind, entries$codriver)</span></span>
 <span id="cb25-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Again, there is a tidyverse approach with dplyr::bind_cols()</span></span>
-<span id="cb25-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-3" aria-hidden="true" tabindex="-1"></a>codrivers <span class="ot">=</span> <span class="fu">bind_cols</span>(entries<span class="sc">$</span>codriver)</span>
-<span id="cb25-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-5" aria-hidden="true" tabindex="-1"></a>codrivers <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
+<span id="cb25-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-3" aria-hidden="true" tabindex="-1"></a>get_codrivers <span class="ot">=</span> <span class="cf">function</span>(entries){</span>
+<span id="cb25-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-4" aria-hidden="true" tabindex="-1"></a>  codrivers <span class="ot">=</span> <span class="fu">bind_cols</span>(entries<span class="sc">$</span>codriver)</span>
+<span id="cb25-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-5" aria-hidden="true" tabindex="-1"></a>  codrivers</span>
+<span id="cb25-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb25-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-8" aria-hidden="true" tabindex="-1"></a>codrivers <span class="ot">=</span> <span class="fu">get_codrivers</span>(entries)</span>
+<span id="cb25-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb25-10" aria-hidden="true" tabindex="-1"></a>codrivers <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##   personId countryId country.countryId
 ## 1     3027        76                76
 ## 2      553       235               235
@@ -488,7 +512,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb31-17"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-17" aria-hidden="true" tabindex="-1"></a>                        <span class="fu">mutate</span>(<span class="at">code =</span> driver<span class="sc">$</span>code) <span class="sc">%&gt;%</span></span>
 <span id="cb31-18"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-18" aria-hidden="true" tabindex="-1"></a>                        <span class="fu">select</span>(<span class="fu">all_of</span>(cols))</span>
 <span id="cb31-19"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-19" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb31-20"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-20" aria-hidden="true" tabindex="-1"></a>  <span class="co"># If we don&#39;t cast it&#39;s a non-rankable rowwise df</span></span>
+<span id="cb31-20"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-20" aria-hidden="true" tabindex="-1"></a>  <span class="co"># If we don&#39;t cast, it&#39;s a non-rankable rowwise df</span></span>
 <span id="cb31-21"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>(entries)</span>
 <span id="cb31-22"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-22" aria-hidden="true" tabindex="-1"></a>}</span>
 <span id="cb31-23"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb31-23" aria-hidden="true" tabindex="-1"></a></span>
@@ -584,16 +608,17 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <h3><span class="header-section-number">2.7.1</span> Getting Stage Times for Multiple Stages</h3>
 <div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb43-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
 <span id="cb43-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-3" aria-hidden="true" tabindex="-1"></a>get_stage_times2 <span class="ot">=</span> <span class="cf">function</span>(stageId, eventId)</span>
-<span id="cb43-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-4" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">get_stage_times</span>(eventId, stageId)</span>
-<span id="cb43-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-6" aria-hidden="true" tabindex="-1"></a>stagelist <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">1747</span>, <span class="dv">1743</span>)</span>
-<span id="cb43-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-8" aria-hidden="true" tabindex="-1"></a>multi_stage_times <span class="ot">=</span> stagelist <span class="sc">%&gt;%</span></span>
-<span id="cb43-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-9" aria-hidden="true" tabindex="-1"></a>                      <span class="fu">map</span>(get_stage_times2, <span class="at">eventId=</span>eventId) <span class="sc">%&gt;%</span> </span>
-<span id="cb43-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-10" aria-hidden="true" tabindex="-1"></a>                      <span class="fu">bind_rows</span>()</span>
-<span id="cb43-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-12" aria-hidden="true" tabindex="-1"></a>multi_stage_times <span class="sc">%&gt;%</span> <span class="fu">tail</span>(<span class="dv">2</span>)</span></code></pre></div>
+<span id="cb43-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-3" aria-hidden="true" tabindex="-1"></a>get_stage_times2 <span class="ot">=</span> <span class="cf">function</span>(stageId, eventId) {</span>
+<span id="cb43-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-4" aria-hidden="true" tabindex="-1"></a>                              <span class="fu">get_stage_times</span>(eventId, stageId)</span>
+<span id="cb43-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-5" aria-hidden="true" tabindex="-1"></a>                            }</span>
+<span id="cb43-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-7" aria-hidden="true" tabindex="-1"></a>stagelist <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">1747</span>, <span class="dv">1743</span>)</span>
+<span id="cb43-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-9" aria-hidden="true" tabindex="-1"></a>multi_stage_times <span class="ot">=</span> stagelist <span class="sc">%&gt;%</span></span>
+<span id="cb43-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-10" aria-hidden="true" tabindex="-1"></a>                      <span class="fu">map</span>(get_stage_times2, <span class="at">eventId=</span>eventId) <span class="sc">%&gt;%</span> </span>
+<span id="cb43-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-11" aria-hidden="true" tabindex="-1"></a>                      <span class="fu">bind_rows</span>()</span>
+<span id="cb43-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb43-13" aria-hidden="true" tabindex="-1"></a>multi_stage_times <span class="sc">%&gt;%</span> <span class="fu">tail</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##     stageTimeId stageId entryId elapsedDurationMs  elapsedDuration    status
 ## 109       96321    1743   21573           1950700 00:32:30.7000000 Completed
 ## 110       96355    1743   21547                NA             &lt;NA&gt;       DNS
@@ -601,18 +626,23 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## 109 Default       54      997800 00:16:37.8000000     245500 00:04:05.5000000
 ## 110 Default       NA          NA             &lt;NA&gt;         NA             &lt;NA&gt;</code></pre>
 <p>We can then widen the stage times for each driver:</p>
-<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-1" aria-hidden="true" tabindex="-1"></a>stage_times_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="st">&#39;stageId&#39;</span>, <span class="st">&#39;elapsedDurationMs&#39;</span>)</span>
-<span id="cb45-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-3" aria-hidden="true" tabindex="-1"></a>multi_stage_times_wide <span class="ot">=</span> multi_stage_times <span class="sc">%&gt;%</span> </span>
-<span id="cb45-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-4" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(stage_times_cols)) <span class="sc">%&gt;%</span></span>
-<span id="cb45-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-5" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">mutate</span>(<span class="at">elapsedDurationS =</span> elapsedDurationMs <span class="sc">/</span> <span class="dv">1000</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb45-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-6" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="sc">-</span>elapsedDurationMs) <span class="sc">%&gt;%</span></span>
-<span id="cb45-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-7" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">group_by</span>(entryId) <span class="sc">%&gt;%</span></span>
-<span id="cb45-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-8" aria-hidden="true" tabindex="-1"></a>                            tidyr<span class="sc">::</span><span class="fu">spread</span>(<span class="at">key =</span> stageId,</span>
-<span id="cb45-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-9" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">value =</span> elapsedDurationS) <span class="sc">%&gt;%</span></span>
-<span id="cb45-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-10" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="fu">as.character</span>(stagelist)))</span>
-<span id="cb45-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-12" aria-hidden="true" tabindex="-1"></a>multi_stage_times_wide <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-1" aria-hidden="true" tabindex="-1"></a>get_multi_stage_times_wide <span class="ot">=</span> <span class="cf">function</span>(multi_stage_times){</span>
+<span id="cb45-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-2" aria-hidden="true" tabindex="-1"></a>  stage_times_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="st">&#39;stageId&#39;</span>, <span class="st">&#39;elapsedDurationMs&#39;</span>)</span>
+<span id="cb45-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb45-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-4" aria-hidden="true" tabindex="-1"></a>  multi_stage_times_wide <span class="ot">=</span> multi_stage_times <span class="sc">%&gt;%</span> </span>
+<span id="cb45-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-5" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(stage_times_cols)) <span class="sc">%&gt;%</span></span>
+<span id="cb45-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-6" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">mutate</span>(<span class="at">elapsedDurationS =</span> elapsedDurationMs <span class="sc">/</span> <span class="dv">1000</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb45-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-7" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="sc">-</span>elapsedDurationMs) <span class="sc">%&gt;%</span></span>
+<span id="cb45-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-8" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">group_by</span>(entryId) <span class="sc">%&gt;%</span></span>
+<span id="cb45-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-9" aria-hidden="true" tabindex="-1"></a>                            tidyr<span class="sc">::</span><span class="fu">spread</span>(<span class="at">key =</span> stageId,</span>
+<span id="cb45-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-10" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">value =</span> elapsedDurationS) <span class="sc">%&gt;%</span></span>
+<span id="cb45-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-11" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="fu">as.character</span>(stagelist)))</span>
+<span id="cb45-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-12" aria-hidden="true" tabindex="-1"></a>  multi_stage_times_wide</span>
+<span id="cb45-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb45-14"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-15"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-15" aria-hidden="true" tabindex="-1"></a>multi_stage_times_wide <span class="ot">=</span> <span class="fu">get_multi_stage_times_wide</span>(multi_stage_times)</span>
+<span id="cb45-16"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-17"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb45-17" aria-hidden="true" tabindex="-1"></a>multi_stage_times_wide <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>## # A tibble: 2 x 3
 ## # Groups:   entryId [2]
 ##   entryId `1747` `1743`
@@ -620,16 +650,20 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## 1   21530   980.   980 
 ## 2   21531   974.   968.</code></pre>
 <p>We can also get the stage positions:</p>
-<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-1" aria-hidden="true" tabindex="-1"></a>stage_positions_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="st">&#39;stageId&#39;</span>, <span class="st">&#39;position&#39;</span>)</span>
-<span id="cb47-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb47-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-3" aria-hidden="true" tabindex="-1"></a>multi_stage_positions_wide <span class="ot">=</span> multi_stage_times <span class="sc">%&gt;%</span> </span>
-<span id="cb47-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-4" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(stage_positions_cols)) <span class="sc">%&gt;%</span></span>
-<span id="cb47-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-5" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">group_by</span>(entryId) <span class="sc">%&gt;%</span></span>
-<span id="cb47-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-6" aria-hidden="true" tabindex="-1"></a>                            tidyr<span class="sc">::</span><span class="fu">spread</span>(<span class="at">key =</span> stageId,</span>
-<span id="cb47-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-7" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">value =</span> position) <span class="sc">%&gt;%</span></span>
-<span id="cb47-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-8" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="fu">as.character</span>(stagelist)))</span>
-<span id="cb47-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb47-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-10" aria-hidden="true" tabindex="-1"></a>multi_stage_positions_wide <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-1" aria-hidden="true" tabindex="-1"></a>get_multi_stage_positions_wide <span class="ot">=</span> <span class="cf">function</span>(multi_stage_times){</span>
+<span id="cb47-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-2" aria-hidden="true" tabindex="-1"></a>  stage_positions_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="st">&#39;stageId&#39;</span>, <span class="st">&#39;position&#39;</span>)</span>
+<span id="cb47-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-4" aria-hidden="true" tabindex="-1"></a>  multi_stage_positions_wide <span class="ot">=</span> multi_stage_times <span class="sc">%&gt;%</span> </span>
+<span id="cb47-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-5" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(stage_positions_cols)) <span class="sc">%&gt;%</span></span>
+<span id="cb47-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-6" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">group_by</span>(entryId) <span class="sc">%&gt;%</span></span>
+<span id="cb47-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-7" aria-hidden="true" tabindex="-1"></a>                            tidyr<span class="sc">::</span><span class="fu">spread</span>(<span class="at">key =</span> stageId,</span>
+<span id="cb47-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-8" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">value =</span> position) <span class="sc">%&gt;%</span></span>
+<span id="cb47-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-9" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="fu">as.character</span>(stagelist)))</span>
+<span id="cb47-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb47-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-12" aria-hidden="true" tabindex="-1"></a>multi_stage_positions_wide <span class="ot">=</span> <span class="fu">get_multi_stage_positions_wide</span>(multi_stage_times)</span>
+<span id="cb47-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-14"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb47-14" aria-hidden="true" tabindex="-1"></a>multi_stage_positions_wide <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>## # A tibble: 2 x 3
 ## # Groups:   entryId [2]
 ##   entryId `1747` `1743`
@@ -681,12 +715,17 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div class="sourceCode" id="cb55"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb55-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="co">#driver_splits = do.call(rbind, entry_splits$splitPointTimes)</span></span>
 <span id="cb55-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The tidyverse approach is to use dplyr::bind_rows()</span></span>
 <span id="cb55-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-3" aria-hidden="true" tabindex="-1"></a><span class="co"># We can also construct a pipe to streamline the processing</span></span>
-<span id="cb55-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-4" aria-hidden="true" tabindex="-1"></a>driver_splits <span class="ot">=</span> entry_splits<span class="sc">$</span>splitPointTimes <span class="sc">%&gt;%</span></span>
-<span id="cb55-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-5" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">bind_rows</span>() <span class="sc">%&gt;%</span></span>
-<span id="cb55-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-6" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">mutate</span>(<span class="at">elapsedDurationS =</span> elapsedDurationMs <span class="sc">/</span> <span class="dv">1000</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb55-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-7" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">select</span>(<span class="sc">-</span>elapsedDurationMs)</span>
-<span id="cb55-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb55-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-9" aria-hidden="true" tabindex="-1"></a>driver_splits <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
+<span id="cb55-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-4" aria-hidden="true" tabindex="-1"></a>get_driver_splits <span class="ot">=</span> <span class="cf">function</span>(entry_splits){</span>
+<span id="cb55-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-5" aria-hidden="true" tabindex="-1"></a>  driver_splits <span class="ot">=</span> entry_splits<span class="sc">$</span>splitPointTimes <span class="sc">%&gt;%</span></span>
+<span id="cb55-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-6" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">bind_rows</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb55-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-7" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">mutate</span>(<span class="at">elapsedDurationS =</span> elapsedDurationMs <span class="sc">/</span> <span class="dv">1000</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb55-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-8" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">select</span>(<span class="sc">-</span>elapsedDurationMs)</span>
+<span id="cb55-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-9" aria-hidden="true" tabindex="-1"></a>  driver_splits</span>
+<span id="cb55-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb55-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-12" aria-hidden="true" tabindex="-1"></a>driver_splits <span class="ot">=</span> <span class="fu">get_driver_splits</span>(entry_splits)</span>
+<span id="cb55-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-14"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb55-14" aria-hidden="true" tabindex="-1"></a>driver_splits <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##   splitPointTimeId splitPointId entryId elapsedDuration         splitDateTime
 ## 1           123482         3615   21540       PT2M41.4S 2021-02-27T07:10:41.4
 ## 2           123483         3601   21540       PT4M32.5S 2021-02-27T07:12:32.5
@@ -694,23 +733,23 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## 1 2021-02-27T09:10:41.4+02:00            161.4
 ## 2 2021-02-27T09:12:32.5+02:00            272.5</code></pre>
 <p>We can cast the data into a wide format, with splits ordered by their distance into the stage:</p>
-<div class="sourceCode" id="cb57"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb57-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-1" aria-hidden="true" tabindex="-1"></a>split_cols <span class="ot">=</span>  <span class="fu">as.character</span>(<span class="fu">arrange</span>(splits<span class="sc">$</span>splitPoints,distance)<span class="sc">$</span>splitPointId)</span>
-<span id="cb57-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-2" aria-hidden="true" tabindex="-1"></a>cols <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="st">&#39;splitPointId&#39;</span>, <span class="st">&#39;elapsedDurationS&#39;</span>)</span>
-<span id="cb57-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb57-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-4" aria-hidden="true" tabindex="-1"></a>get_driver_splits_wide <span class="ot">=</span> <span class="cf">function</span>(driver_splits, split_cols){</span>
+<div class="sourceCode" id="cb57"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb57-1"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-1" aria-hidden="true" tabindex="-1"></a>get_driver_splits_wide <span class="ot">=</span> <span class="cf">function</span>(driver_splits, splits){</span>
+<span id="cb57-2"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-2" aria-hidden="true" tabindex="-1"></a>    split_cols <span class="ot">=</span>  <span class="fu">as.character</span>(<span class="fu">arrange</span>(splits<span class="sc">$</span>splitPoints, distance)<span class="sc">$</span>splitPointId)</span>
+<span id="cb57-3"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-3" aria-hidden="true" tabindex="-1"></a>    splits_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, <span class="st">&#39;splitPointId&#39;</span>, <span class="st">&#39;elapsedDurationS&#39;</span>)</span>
+<span id="cb57-4"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-4" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb57-5"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-5" aria-hidden="true" tabindex="-1"></a>    driver_splits_wide <span class="ot">=</span> driver_splits <span class="sc">%&gt;%</span> </span>
 <span id="cb57-6"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-6" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">group_by</span>(entryId) <span class="sc">%&gt;%</span></span>
-<span id="cb57-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-7" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(cols)) <span class="sc">%&gt;%</span></span>
+<span id="cb57-7"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-7" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(splits_cols)) <span class="sc">%&gt;%</span></span>
 <span id="cb57-8"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-8" aria-hidden="true" tabindex="-1"></a>                            tidyr<span class="sc">::</span><span class="fu">spread</span>(<span class="at">key =</span> splitPointId,</span>
 <span id="cb57-9"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-9" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">value =</span> elapsedDurationS) <span class="sc">%&gt;%</span></span>
 <span id="cb57-10"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-10" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">select</span>(<span class="fu">all_of</span>(<span class="fu">c</span>(<span class="st">&#39;entryId&#39;</span>, split_cols))) <span class="sc">%&gt;%</span></span>
-<span id="cb57-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-11" aria-hidden="true" tabindex="-1"></a>                            <span class="co"># If we don&#39;t cast it&#39;s</span></span>
+<span id="cb57-11"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-11" aria-hidden="true" tabindex="-1"></a>                            <span class="co"># If we don&#39;t cast, it&#39;s a</span></span>
 <span id="cb57-12"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-12" aria-hidden="true" tabindex="-1"></a>                            <span class="co"># non-rankable rowwise df</span></span>
 <span id="cb57-13"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-13" aria-hidden="true" tabindex="-1"></a>                            <span class="fu">as.data.frame</span>()</span>
 <span id="cb57-14"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-14" aria-hidden="true" tabindex="-1"></a>    driver_splits_wide</span>
 <span id="cb57-15"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-15" aria-hidden="true" tabindex="-1"></a>}</span>
 <span id="cb57-16"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb57-17"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-17" aria-hidden="true" tabindex="-1"></a>driver_splits_wide <span class="ot">=</span>  <span class="fu">get_driver_splits_wide</span>(driver_splits, split_cols)</span>
+<span id="cb57-17"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-17" aria-hidden="true" tabindex="-1"></a>driver_splits_wide <span class="ot">=</span>  <span class="fu">get_driver_splits_wide</span>(driver_splits, splits)</span>
 <span id="cb57-18"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-18" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb57-19"><a href="accessing-data-from-the-wrc-live-timing-api.html#cb57-19" aria-hidden="true" tabindex="-1"></a>driver_splits_wide <span class="sc">%&gt;%</span> <span class="fu">head</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##   entryId  3615  3601  3621  3617  3593

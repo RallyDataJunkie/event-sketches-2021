@@ -8,7 +8,7 @@ We can get rally details, timing and results data from the WRC live timing servi
 
 
 ## Current Season Rallies
-To start with, let's see what rallies are scheduled for the current, active season:
+To start with, let's see what rallies are scheduled for the current, active season. The `jsonlite::fromJSON()` will retrieve a JSON (*JavaScript Object Notation*) file from a URL and attempt to unpack it into an *R* dataframe:
 
 ```{r message=F, warning=F}
 library(jsonlite)
@@ -21,12 +21,14 @@ get_active_season = function(active_season_url="https://api.wrc.com/contel-page/
 
 s = get_active_season(active_season_url)$rallyEvents$items
 
+# Preview the column names of the resulting dataframe
 colnames(s)
 ```
 
-Let's preview a couple of those columns:
+Let's preview the contents of a couple of those columns:
 
 ```{r}
+# The tidyr / magrittr pipe syntax makes things easier to read
 s %>% select(c('id', 'name')) %>% head()
 ```
 
@@ -55,17 +57,21 @@ itinerary = get_itinerary(eventId)
 itinerary
 ```
 
-The *startListId* can be used alongside the event ID to look up the startlist for a leg:
+The *startListId* can be used alongside the event ID to look up the startlist for a leg. We can order the startlist by start order:
 
 ```{r}
 get_startlist = function(eventId, startListId) {
   startlist_url = paste0(results_api, '/rally-event/',
-                         eventId,'/start-list-external/',startListId)
+                         eventId,'/start-list-external/', startListId)
+  
   startlist = jsonlite::fromJSON(startlist_url)$startListItems
+  
+  # Order the startlist dataframe by start order
   startlist %>% arrange(order)
 }
 
 # Example startlist ID
+# Use a regular expression to find the startlist ID by day
 startListId = itinerary[str_detect(itinerary$name,
                                    regex('Friday', ignore_case = T)),
                        'startListId']
@@ -92,7 +98,11 @@ In the sections dataframe we have one row per section. We notice again the prese
 We can look up information about each time control from data provided as part of the itinerary lookup using the same trick as before to "unroll" the contents of each dataframe in a specified column into a single dataframe:
 
 ```{r}
-controls = do.call(rbind, sections$controls)
+get_controls = function(sections){
+  do.call(rbind, sections$controls)
+}
+
+controls = get_controls(sections)
 
 controls %>% head(2)
 ```
@@ -102,7 +112,11 @@ controls %>% head(2)
 We can pull also pull stage details from the dataframes contained in the `sections` dataframe from the itinerary lookup:
 
 ```{r}
-stages = do.call(rbind, sections$stages)
+get_stages = function(sections){
+  stages = do.call(rbind, sections$stages)
+}
+
+stages = get_stages(sections)
 
 stages %>% head()
 ```
@@ -164,7 +178,12 @@ Detailed information for each driver and codriver can be found in the correspond
 For example, we can look up the details for each driver, noting in this case that we need to column bind (`cbind()`) the subdataframes to produce the collated dataframe of driver details:
 
 ```{r}
-drivers = do.call(cbind, entries$driver)
+get_drivers = function(entries){
+  drivers = do.call(cbind, entries$driver)
+  drivers
+}
+
+drivers = get_drivers(entries)
 
 drivers %>% head()
 ```
@@ -174,7 +193,12 @@ We can similarly obtain data for the codrivers:
 ```{r}
 #codrivers = do.call(cbind, entries$codriver)
 # Again, there is a tidyverse approach with dplyr::bind_cols()
-codrivers = bind_cols(entries$codriver)
+get_codrivers = function(entries){
+  codrivers = bind_cols(entries$codriver)
+  codrivers
+}
+
+codrivers = get_codrivers(entries)
 
 codrivers %>% head(2)
 ```
@@ -310,8 +334,9 @@ stage_times %>% head(2)
 ```{r message=F, warning=F}
 library(purrr)
 
-get_stage_times2 = function(stageId, eventId)
-                    get_stage_times(eventId, stageId)
+get_stage_times2 = function(stageId, eventId) {
+                              get_stage_times(eventId, stageId)
+                            }
 
 stagelist = c(1747,	1743)
 
@@ -325,9 +350,10 @@ multi_stage_times %>% tail(2)
 We can then widen the stage times for each driver:
 
 ```{r}
-stage_times_cols = c('entryId', 'stageId', 'elapsedDurationMs')
-
-multi_stage_times_wide = multi_stage_times %>% 
+get_multi_stage_times_wide = function(multi_stage_times){
+  stage_times_cols = c('entryId', 'stageId', 'elapsedDurationMs')
+  
+  multi_stage_times_wide = multi_stage_times %>% 
                             select(all_of(stage_times_cols)) %>%
                             mutate(elapsedDurationS = elapsedDurationMs / 1000) %>%
                             select(-elapsedDurationMs) %>%
@@ -335,6 +361,10 @@ multi_stage_times_wide = multi_stage_times %>%
                             tidyr::spread(key = stageId,
                                           value = elapsedDurationS) %>%
                             select(c('entryId', as.character(stagelist)))
+  multi_stage_times_wide
+}
+
+multi_stage_times_wide = get_multi_stage_times_wide(multi_stage_times)
 
 multi_stage_times_wide %>% head(2)
 ```
@@ -342,14 +372,18 @@ multi_stage_times_wide %>% head(2)
 We can also get the stage positions:
 
 ```{r}
-stage_positions_cols = c('entryId', 'stageId', 'position')
+get_multi_stage_positions_wide = function(multi_stage_times){
+  stage_positions_cols = c('entryId', 'stageId', 'position')
 
-multi_stage_positions_wide = multi_stage_times %>% 
+  multi_stage_positions_wide = multi_stage_times %>% 
                             select(all_of(stage_positions_cols)) %>%
                             group_by(entryId) %>%
                             tidyr::spread(key = stageId,
                                           value = position) %>%
                             select(c('entryId', as.character(stagelist)))
+}
+
+multi_stage_positions_wide = get_multi_stage_positions_wide(multi_stage_times)
 
 multi_stage_positions_wide %>% head(2)
 ```
@@ -391,10 +425,15 @@ We can get a flatter structure over all drivers, converting the elapsed duration
 #driver_splits = do.call(rbind, entry_splits$splitPointTimes)
 # The tidyverse approach is to use dplyr::bind_rows()
 # We can also construct a pipe to streamline the processing
-driver_splits = entry_splits$splitPointTimes %>%
+get_driver_splits = function(entry_splits){
+  driver_splits = entry_splits$splitPointTimes %>%
                     bind_rows() %>%
                     mutate(elapsedDurationS = elapsedDurationMs / 1000) %>%
                     select(-elapsedDurationMs)
+  driver_splits
+}
+
+driver_splits = get_driver_splits(entry_splits)
 
 driver_splits %>% head(2)
 ```
@@ -402,13 +441,13 @@ driver_splits %>% head(2)
 We can cast the data into a wide format, with splits ordered by their distance into the stage:
 
 ```{r}
-split_cols =  as.character(arrange(splits$splitPoints,distance)$splitPointId)
-cols = c('entryId', 'splitPointId', 'elapsedDurationS')
-
-get_driver_splits_wide = function(driver_splits, split_cols){
+get_driver_splits_wide = function(driver_splits, splits){
+    split_cols =  as.character(arrange(splits$splitPoints, distance)$splitPointId)
+    splits_cols = c('entryId', 'splitPointId', 'elapsedDurationS')
+    
     driver_splits_wide = driver_splits %>% 
                             group_by(entryId) %>%
-                            select(all_of(cols)) %>%
+                            select(all_of(splits_cols)) %>%
                             tidyr::spread(key = splitPointId,
                                           value = elapsedDurationS) %>%
                             select(all_of(c('entryId', split_cols))) %>%
@@ -418,7 +457,7 @@ get_driver_splits_wide = function(driver_splits, split_cols){
     driver_splits_wide
 }
 
-driver_splits_wide =  get_driver_splits_wide(driver_splits, split_cols)
+driver_splits_wide =  get_driver_splits_wide(driver_splits, splits)
 
 driver_splits_wide %>% head(2)
 ```
