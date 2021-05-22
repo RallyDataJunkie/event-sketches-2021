@@ -1,0 +1,28 @@
+---
+title: "`r params$doc_title`"
+subtitle: "A RallyDataJunkie Adventure"
+author: "Tony Hirst"
+description: "Stage route analysis, WRC Rally Portugal, 2021"
+knit: "bookdown::render_book"
+site: bookdown::bookdown_site
+date: "Last generated on `r format(Sys.time(), '%d %B, %Y')`"
+always_allow_html: yes
+new_session: no
+
+params:
+  doc_title: "Stage Route Review"
+---
+
+# Preface {-}
+
+Automatically generated stage analyses of stages on *WRC Rally Portugal, 2021*.
+
+Based on analysis of KML route files downloaded from the WRC website.
+
+To discuss / critique / comment on these analyses, please use the [discussion forum](https://github.com/RallyDataJunkie/portugal_2021_route/discussions/).
+
+For a guide to the code used to generate the stage reports, see [*Visualising WRC Rally Stages*](https://rallydatajunkie.com/visualising-rally-stages/).
+
+See also [*Visualising WRC Rally Results*](https://rallydatajunkie.com/visualising-wrc-rally-results).
+
+*This report is unofficial and is not associated in any way with the Fédération Internationale de l’Automobile (FIA) or WRC Promoter GmbH.*

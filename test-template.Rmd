@@ -1,0 +1,328 @@
+```{r results=FALSE, message=FALSE, warning=FALSE}
+route_index = {{i}}
+stage_route_gj = geojsonio::geojson_json(geojson_sf[route_index,]$geometry)
+
+route_basis_sf = geojson_sf[route_index,]
+route_basis_utm = utm_routes[route_index,]
+
+stage_coords = as.data.frame(sf::st_coordinates(route_basis_sf))
+
+dem <- get_dem(stage_coords)
+dem_utm <- get_dem_utm(dem, geojson_sf)
+
+route_convexity <- get_route_convexity(route_basis_utm)
+route_convexity = get_route_convexity2(route_convexity, dem_utm)
+
+trj = create_trj(route_basis_utm)
+
+# Sample every 500m and select odd rows (mid point of km segment)
+# Hack to resample against distance as time
+trj$time = trj$cum_dist
+sample_500m = TrajResampleTime(trj, 500 )[c(TRUE,FALSE),]
+sample_5km = TrajResampleTime(trj, 5000 )
+# Add kilometer labels
+sample_500m$km = 1:nrow(sample_500m)
+sample_5km$km = 5*(1:nrow(sample_5km))
+
+trj_corners = trj[trj$firstish,]
+trj_corners$corner_num = cumsum(trj_corners$firstish)
+
+trj_segment_plots_list = trj_segments_plots(trj)
+
+trj$kmsection = 1 + trunc(trj$cum_dist/1000)
+trj_gg_km = trj %>% group_by(kmsection) %>%
+                  group_map(~seg_gg(.x))
+
+trj_sinuosity_list = trj %>% group_by(kmsection) %>%
+              group_map(~TrajSinuosity2(.x)) %>% unlist
+trj_straightness_list = trj %>% group_by(kmsection) %>%
+              group_map(~TrajStraightness(.x)) %>%
+                unlist
+
+
+trj_stats = data.frame(sinuosity=trj_sinuosity_list,
+                       straightness = trj_straightness_list)
+
+trj_stats$km = 1:max(trj$kmsection)
+
+# This is the route map for each section
+trj_stats$route = lapply(trj_gg_km, gt::ggplot_image)
+```
+
+```{r}
+route_name = geojson_sf[route_index,]$name
+```
+
+# `r route_name`
+
+A quick review of the stage, detailing the overall route, the route in 1km sections, route elevation profile and route curvature profile.
+
+## Stage Route Preview
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(leaflet)
+
+leaflet() %>% 
+  addProviderTiles("OpenTopoMap", group = "OSM") %>%
+  addPolylines(color = "red", weight = 5,
+               data=route_basis_sf)
+```
+
+Static map, significant corners highlighted:
+
+```{r results = FALSE, message=FALSE, warning=FALSE}
+#g = trj_route_plot(get_stage_data(geojson_sf,{{i}}))
+g = trj_route_plot(trj)
+```
+```{r test_{{i}}}
+#Ideally we add labels that don't overlap line
+# Add km labels
+g + ggrepel::geom_label_repel(data=sample_500m,
+                              aes(x=x, y=y, label=paste0(km,'km')),
+               nudge_x=10, nudge_y=10, size=2)
+#g
+```
+
+## Segmented Route
+
+1km route sections, aligned to read left to right; significant corners highlighted.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+ncol = 5
+g = trj_segments_plot(trj_segment_plots_list, route_basis_sf, ncol)
+h = ceiling(length(trj_segment_plots_list)/ncol)
+subchunkify(g, 2*h, 7)
+```
+
+## Speed Estimates
+
+*Estimates of speed along the route according to a very simple acceleration model.*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+library(devtools)
+# The curvature function takes an arc defined over
+# x and y coordinate lists
+
+#circlefit, from pracma::
+circlefit = function (xp, yp, fast = TRUE) 
+{
+    if (!is.vector(xp, mode = "numeric") || !is.vector(yp, mode = "numeric")) 
+        stop("Arguments 'xp' and 'yp' must be numeric vectors.")
+    if (length(xp) != length(yp)) 
+        stop("Vectors 'xp' and 'yp' must be of the same length.")
+    if (!fast) 
+        warning("Option 'fast' is deprecated and will not be used!", 
+            call. = FALSE, immediate. = TRUE)
+    n <- length(xp)
+    p <- qr.solve(cbind(xp, yp, 1), matrix(xp^2 + yp^2, ncol = 1))
+    v <- c(p[1]/2, p[2]/2, sqrt((p[1]^2 + p[2]^2)/4 + p[3]))
+    rms <- sqrt(sum((sqrt((xp - v[1])^2 + (yp - v[2])^2) - v[3])^2)/n)
+    #cat("RMS error:", rms, "\n")
+    return(v)
+}
+
+curvature = function(x,y){
+  #729181.8, 729186.1, 729190.4
+  #4957667 , 4957676, 4957685
+  tryCatch({
+      # circlefit gives an error if we pass a straight line
+      # Also hide the print statement in circlefit
+      # circlefit() returns the x and y coords of the circle center
+      # as well as the radius of curvature
+      # We could then also calculate the angle and arc length
+      circlefit(x,y)[3]
+    },
+    error = function(err) { 
+      # For a straight, return the first co-ord and Inf diameter
+      # Alternatively, pass zero diameter?
+      c(x[1], y[1], Inf)[3]})
+}
+
+curvature2 = function(x1, x2, x3, y1, y2, y3){
+  curvature(c(x1, x2, x3), c(y1, y2, y3))
+}
+
+# The base::Vectorize function provides a lazy way of 
+# vectorising a non-vectorised function
+curvatures = Vectorize(curvature2)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+library(dplyr)
+  
+route_convexity$radius = curvatures(lag(route_convexity$Midpoint_X), 
+                                    route_convexity$Midpoint_X,
+                                    lead(route_convexity$Midpoint_X),
+                                    lag(route_convexity$Midpoint_Y),
+                                    route_convexity$Midpoint_Y,
+                                    lead(route_convexity$Midpoint_Y)
+                                    )
+```
+
+```{r}
+invisible_bins = c(0, 10, 15, 20, 27.5, 35,
+                    45, 60, 77.5, 100, 175, Inf)
+
+route_convexity$invisible_ts = cut(route_convexity$radius,
+                                   breaks = invisible_bins,
+                                   labels = 1:(length(invisible_bins)-1),
+                                   ordered_result=TRUE)
+
+# Speeds in km/h
+invisible_speeds = c(10, 40, 50, 60, 70, 80,
+                     95, 110, 120, 130, 145)
+```
+
+```{r}
+route_convexity$invisible_sp = cut(route_convexity$radius,
+                                   breaks = invisible_bins,
+                                   labels = invisible_speeds,
+                                   ordered_result=TRUE)
+
+# Cast speed as factor, via character, to integer
+route_convexity$invisible_sp = as.integer(as.character(route_convexity$invisible_sp))
+
+route_convexity$invisible_time = 10/ (route_convexity$invisible_sp * 1000 /3600)
+```
+
+```{r}
+#duration = sum(route_convexity$invisible_time) 
+
+# Acceleration model
+sp = route_convexity$invisible_sp
+sp[1] = 30 # nominal starting speed
+
+# Crude acceleration / brake weights
+acc = 1
+dec = 1
+for (i in 2:(length(sp)-1)) {
+  # Accelerate up
+  if (sp[i-1]<=sp[i]) sp[i] = (sp[i-1] + acc * sp[i]) / (1+acc)
+                                  
+  # Decelerate down
+  if (sp[i]>sp[i+1]) sp[i] = (dec * sp[i] + sp[i+1]) / (1+dec)
+}
+```
+
+
+```{r}
+route_convexity$acc_sp = sp
+route_convexity$acc_sp[length(sp)] = route_convexity$invisible_sp[length(sp)]
+
+# New time model
+route_convexity$invisible_time2 = 10/ (route_convexity$acc_sp * 1000 /3600)
+
+route_convexity = route_convexity %>% mutate(segment_sp = dist/invisible_time2)
+
+# So now we need to generate kilometer marks and find time over each
+route_convexity$kmsection = 1 + trunc(route_convexity$MidMeas/1000)
+```
+
+Kilometer section speeds (*kmtime* is time in seconds to complete that segment; *avspeed* is in km/h):
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+route_convexity_gg_km = route_convexity %>% group_by(kmsection) %>%
+                  summarise(section_length = sum(dist, na.rm=TRUE)/1000,
+                            km_time = sum(invisible_time2),
+                            av_speed = section_length * 3600/km_time,
+                            maxspeed = max(acc_sp))
+kable(route_convexity_gg_km)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+duration2 = sum(route_convexity$invisible_time2) 
+cat(paste0("Anticipated stage time: ", duration2 %/% 60, 'm ', round(mod(duration2, 60),1), 's' ))
+
+```
+
+
+Speed profile chart: this chart shows the anticipated speed over distance into route on a per kilometer basis (the green area is flat out, the pink is the sort of slow you see at a hairpin):
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+
+route_conv_segments_plots =function(rc){
+  # Create a list to hold each plot as a separate item
+  segment_plots = list()
+
+  for (i in 1:max(rc$kmsection)){
+    # Add each plot to the plot list
+    segment_plots[[length(segment_plots) + 1]] <-
+      ggplot(rc[rc$kmsection==i,]) +
+      annotate("rect", xmin=-Inf, xmax=Inf, ymin=0, ymax=30, alpha=0.15, fill='pink') + annotate("rect", xmin=-Inf, xmax=Inf, ymin=130, ymax=Inf, alpha=0.15, fill='green') +
+      geom_line(aes(x=MidMeas, y=acc_sp)) +
+      ylim(0,150) + theme_void() + ggtitle(paste0(i))
+  }
+  segment_plots
+}
+
+g2 = trj_segments_plot(route_conv_segments_plots(route_convexity), route_basis_sf, ncol)
+subchunkify(g2, 2*h, 7)
+```
+
+
+## Elevation and Convexity Index into Route
+
+Elevation and significant curvature vs distance into stage:
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+elevation_convexity_plot(route_convexity, route_basis_sf,
+                         signif_conv_index=0.1)
+
+# TO DO kilometer sections for elevation
+# TO DO Text report by kilometer section
+```
+
+(Note that this uses a different curvature measure to the route plots; specifically, the curvature measure used here is the convexity index.)
+
+
+### Left and Right
+
+How does the stage vary in terms of left and right turns?
+
+Order the severity of right and left turns over the stage:
+
+```{r}
+# Get a table of the left and right turns (eg ConvexityIndex)
+route_convexity %>% 
+  arrange(ConvexityIndex) %>%
+  mutate(dummy=row_number()) %>%
+  ggplot(aes(x=dummy, y=ConvexityIndex))+geom_col()+ ylim(-1,1) +
+  theme_light() + theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+      labs(title=paste0("Corner Convexity Index Profile for ", route_name))
+
+# TO DO - which is left and which is right?
+
+# TO DO - kilometer sections for left and right
+# TO DO Left/right text report by kilometer section
+```
+
+### Sinuosity and Straightness
+
+*Sinuosity and straightness are technical measures with specific defintions. They may or may not be that useful for route analysis in their current form. The intention is to try to find ways of identifying variously "interesting" kilometer stretches.*
+
+```{r}
+ggplot(trj_stats, aes(x=straightness,
+                            y=sinuosity,
+                            label = km)) + 
+        geom_point(size=1)  +
+        # hjust: left justification (0), right justification (1)
+        geom_text(size=3, hjust = 1, nudge_y = -0.001) +
+        ggtitle("Sinousity versus straightness")
+```
+
+
+```{r message=FALSE, warning=FALSE,}
+formattable(trj_stats[,c('km', 'sinuosity', 'straightness', 'route')], 
+            list(sinuosity= color_tile( "transparent", "lightpink"),
+                 straightness= color_tile("lightblue", "transparent")),
+             caption=paste('Stage segmented into 1km sections:',
+                           head(route_basis_sf, 1)$name))
+
+```
+
+
+

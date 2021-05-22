@@ -1,0 +1,54 @@
+
+```{r setup, warning=FALSE, include=FALSE, echo=FALSE, message=FALSE, output=FALSE}
+library(knitr)
+
+#geojson_filename = 'data/finland_arctic_2021.geojson'
+#geojson_filename = 'data/croatia_2021.geojson'
+geojson_filename = 'data/portugal_2021.geojson'
+
+route_index = 4 # 3, 4, 5, 6 
+
+geojson_sf = sf::st_read(geojson_filename)
+# Drop the Z dimension
+geojson_sf = sf::st_zm(geojson_sf, drop = TRUE, what = "ZM")
+
+
+#route_index = params$route_index
+
+source('code/sketches.R')
+utm_routes = get_utm_projection(geojson_sf)
+```
+
+```{r}
+# TO DO - we need to make a statement of surface or conditions
+# to act as a speed modifier
+```
+
+
+```{r}
+#Preview available stages
+#geojson_sf[[1]]
+
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, error=FALSE, output=FALSE}
+#src = lapply(3:7, function(i) {
+#knit_expand(text=c("# `r geojson_sf[{{i}},]$name`", '```{r test2-{{i}}}', 'geojson_sf[{{i}},]$name', 'trj_route_plot(get_stage_data(geojson_sf,{{i}}))', '```'))
+#})
+# knit the source
+#res = knit_child(text = unlist(src), quiet=TRUE)
+
+#cat(res)
+```
+
+```{r message=FALSE, echo=FALSE, error=FALSE, warning=FALSE, results='asis'}
+# We need to better calculate the range of stages
+
+for (i in 2:14){
+  src = knit_expand("test-template.Rmd")
+  cat(knit_child(text=src,
+                 options = list(echo=FALSE, warning=FALSE, error=FALSE),
+                 quiet=TRUE))
+}
+```
+
