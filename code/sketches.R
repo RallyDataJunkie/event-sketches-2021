@@ -131,6 +131,9 @@ elevation_convexity_plot = function(route_convexity,
   max_elevation = max(route_convexity$elevation)
   max_dist = max(route_convexity$MidMeas)
   
+  #Fence post...
+  segment_length = ifelse(segment_length<max_dist, segment_length, max_dist)
+  
   g = ggplot(route_convexity, aes(x = MidMeas, y=elevation)) +
     geom_line(color='grey') + 
     geom_point(data = tidyr::drop_na(route_convexity[(abs(route_convexity$ConvexityIndex))>signif_conv_index,]), 
@@ -207,7 +210,8 @@ create_trj = function(route_basis_utm){
 
 trj_route_plot = function(trj){
   g = ggplot(data=trj,
-             aes(x=x, y=y)) + geom_path(color='grey') + coord_sf()
+             aes(x=x, y=y)) + geom_path(color='grey') + coord_sf() +
+            xlab('')+ylab('')
   
   g + geom_point( size=0.2, color='blue',
                   data=trj[trj$step_gradient>0.2,]) +
@@ -231,10 +235,11 @@ trj_segment_plot = function(trj, start, end,
   # Filter the route
   route_segment = trj[segment_filter,]
   
-  if (!is.null(rotate))
+  if (!plyr::empty(route_segment) & !is.null(rotate)) {
     route_segment = TrajRotate(route_segment,
                                angle = rotate,
                                relative = TRUE)
+  }
   
   # Generate the stylised route plot
   g = ggplot(route_segment) +
@@ -327,13 +332,13 @@ trj_segments_plots =function(trj, segment_length=1000){
 
 #http://michaeljw.com/blog/post/subchunkify/
 #generates a new chunk with the desired width and height
-subchunkify <- function(g, fig_height=7, fig_width=5) {
+subchunkify <- function(g, fig_height=7, fig_width=5, prefix="") {
   g_deparsed <- paste0(deparse(
     function() {g}
   ), collapse = '')
   
   sub_chunk <- paste0("
-  `","``{r sub_chunk_", floor(runif(1) * 10000), ", fig.height=", fig_height, ", fig.width=", fig_width, ", echo=FALSE}",
+  `","``{r sub_chunk_",prefix, floor(runif(1) * 1000000), ", fig.height=", fig_height, ", fig.width=", fig_width, ", echo=FALSE}",
                       "\n(", 
                       g_deparsed
                       , ")()",
