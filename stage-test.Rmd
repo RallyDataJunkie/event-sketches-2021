@@ -1,0 +1,130 @@
+---
+title: "`r paste('Stage Review', params$ss)`"
+output: html_document
+params:
+    route_index: 4
+    ss: SS1 / 2
+
+#rmarkdown::render(input = "stage-test.Rmd",  output_file = "ss1-2.html", params= list(route_index = 3, ss = 'SS1 / 2' ))
+---
+
+*Automated stage reviews from `RallyDataJunkie.com`*
+
+```{r setup, include=FALSE, echo=FALSE, message=FALSE, output=FALSE}
+
+geojson_filename = 'data/finland_arctic_2021.geojson'
+
+#route_index = 4 # 3, 4, 5, 6 
+
+geojson_sf = sf::st_read(geojson_filename)
+# Drop the Z dimension
+geojson_sf = sf::st_zm(geojson_sf, drop = TRUE, what = "ZM")
+
+
+route_index = params$route_index
+
+source('code/sketches.R')
+utm_routes = get_utm_projection(geojson_sf)
+
+stage_route_gj = geojsonio::geojson_json(geojson_sf[route_index,]$geometry)
+
+route_basis_sf = geojson_sf[route_index,]
+route_basis_utm = utm_routes[route_index,]
+
+stage_coords = as.data.frame(sf::st_coordinates(route_basis_sf))
+
+dem <- get_dem(stage_coords)
+dem_utm <- get_dem_utm(dem,geojson_sf)
+```
+
+```{r}
+route_convexity <- get_route_convexity(route_basis_utm)
+
+trj = create_trj(route_basis_utm)
+
+# TO DO - route convexity needs trj integrations?
+route_convexity = get_route_convexity2(route_convexity, dem_utm)
+
+trj = create_trj(route_basis_utm)
+
+trj_corners = trj[trj$firstish,]
+trj_corners$corner_num = cumsum(trj_corners$firstish)
+
+trj_segment_plots_list = trj_segments_plots(trj)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+#trj$radius = curvatures(trj$x, lead(trj$x, 1), lead(trj$x,2),
+#                        trj$y, lead(trj$y), lead(trj$y,2) )
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+trj$kmsection = 1 + trunc(trj$cum_dist/1000)
+trj_gg_km = trj %>% group_by(kmsection) %>%
+                  group_map(~seg_gg(.x))
+
+trj_sinuosity_list = trj %>% group_by(kmsection) %>%
+              group_map(~TrajSinuosity2(.x)) %>% unlist
+trj_straightness_list = trj %>% group_by(kmsection) %>%
+              group_map(~TrajStraightness(.x)) %>%
+                unlist
+
+
+trj_stats = data.frame(sinuosity=trj_sinuosity_list,
+                       straightness = trj_straightness_list)
+
+trj_stats$km = 1:max(trj$kmsection)
+
+trj_stats$route = lapply(trj_gg_km, gt::ggplot_image)
+
+```
+
+## Stage Route Preview
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(leaflet)
+
+leaflet() %>% 
+  addProviderTiles("OpenTopoMap", group = "OSM") %>%
+ addPolylines(color = "red", weight = 5,
+               data=route_basis_sf)
+```
+
+Static map, significant corners highlighted:
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+trj_route_plot(trj)
+```
+
+## Segmented Route
+
+1km route sections, aligned to read left to right; significant corners highlighed.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+trj_segments_plot(trj_segment_plots_list, route_basis_sf)
+```
+
+
+
+## Elevation and Convexity Index into Route
+
+Elevation and significant curvature vs distance into stage:
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+elevation_convexity_plot(route_convexity, route_basis_sf,
+                         signif_conv_index=0.1)
+```
+
+(Note that this uses a different curvature measure to the route plots; specifically, the curvature measure used here is the convexity index.)
+
+
+```{r}
+formattable(trj_stats[,c('km', 'sinuosity', 'straightness', 'route')], 
+            list(sinuosity= color_tile( "transparent", "lightpink"),
+                 straightness= color_tile("lightblue", "transparent")),
+             caption=paste('Stage segmented into 1km sections:',
+                           head(route_basis_sf, 1)$name))
+
+```
+
