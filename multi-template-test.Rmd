@@ -1,10 +1,22 @@
 
-```{r setup, warning=FALSE, include=FALSE, echo=FALSE, message=FALSE, output=FALSE}
+```{r setup-route-review, warning=FALSE, include=FALSE, echo=FALSE, message=FALSE, output=FALSE}
 library(knitr)
+library(tidyr)
+library(dplyr)
+library(sf)
+
+knitr.duplicate.label = "allow"
+knitr::opts_chunk$set(fig.path = "images/")
 
 #geojson_filename = 'data/finland_arctic_2021.geojson'
 #geojson_filename = 'data/croatia_2021.geojson'
 geojson_filename = 'data/portugal_2021.geojson'
+geojson_filename = 'data/sardegna_2021.geojson'
+geojson_filename = 'data/kenya_2021.geojson'
+geojson_filename = 'data/greece_2021.geojson'
+geojson_filename = 'data/finland_2021.geojson'
+geojson_filename = 'data/montecarlo_2022.geojson'
+geojson_filename = 'data/greece_2022.geojson'
 
 route_index = 4 # 3, 4, 5, 6 
 
@@ -13,19 +25,58 @@ geojson_sf = sf::st_read(geojson_filename)
 geojson_sf = sf::st_zm(geojson_sf, drop = TRUE, what = "ZM")
 
 
+# Resample the line strings so that points are less than 1km apart
+# This is a bit of a guesstimate based on degrees to m..
+#length(smoothr::smooth_densify(geojson_sf$geometry[[9]], max_distance=0.01))
+#length(geojson_sf$geometry[[9]])
+#https://stackoverflow.com/a/48525396/454773.
+
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, include=FALSE, error=FALSE}
+
+# TO DO
+# BROKEN FROM HERE
+
+#max_dist_func = function(l, max_distance=0.005){
+#  if (is.matrix(l))
+#    st_linestring(smoothr::smooth_densify(l, max_distance=max_distance))
+#  else 
+#    l
+#}
+#v_max_dist_func <- Vectorize(max_dist_func)
+
+
+#geojson_sf = geojson_sf %>% 
+#  mutate(geometry2 = v_max_dist_func(geometry))
+
+#geojson_sf = st_set_geometry(geojson_sf, st_sfc(geojson_sf$geometry2)) %>%
+#  select(-geometry2)  %>%  st_set_crs(st_crs(geojson_sf))
+# BROKEN TO HERE
+
+#geojson_sf2 = geojson_sf %>% max_dist_func(geometry)
+#geojson_sf3 = st_set_geometry(geojson_sf, geojson_sf2)
+#library(purrr)
+#dist_lapply <- lapply(st_geometry(geojson_sf),  max_dist_func)
+#dist_map    <- purrr::map(st_geometry(geojson_sf), max_dist_func)
+
+#resampled_geom = geojson_sf %>%  st_geometry() %>%  max_dist_func()
+#geojson_sf <- st_set_geometry(geojson_sf, resampled_geom)
+#length(st_coordinates(sfheaders::sf_linestring(smoothr::smooth_densify(geojson_sf$geometry[[9]], max_distance=0.005))))
+#length(geojson_sf$geometry[[9]])
 #route_index = params$route_index
 
 source('code/sketches.R')
 utm_routes = get_utm_projection(geojson_sf)
 ```
 
-```{r}
+```{r echo=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
 # TO DO - we need to make a statement of surface or conditions
 # to act as a speed modifier
 ```
 
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 #Preview available stages
 #geojson_sf[[1]]
 
@@ -41,14 +92,22 @@ utm_routes = get_utm_projection(geojson_sf)
 #cat(res)
 ```
 
-```{r message=FALSE, echo=FALSE, error=FALSE, warning=FALSE, results='asis'}
+```{r template-iterator-state-test, message=FALSE, echo=FALSE, error=FALSE, warning=FALSE, results='asis'}
 # We need to better calculate the range of stages
-
-for (i in 2:14){
+#21, 2:12 #issue with 9
+for (route_i in 3:13){
   src = knit_expand("test-template.Rmd")
   cat(knit_child(text=src,
                  options = list(echo=FALSE, warning=FALSE, error=FALSE),
                  quiet=TRUE))
+  
+  src = knit_expand("stage-3d-template.Rmd")
+  cat(knit_child(text=src,
+                 options = list(echo=FALSE, warning=FALSE, error=FALSE),
+                 quiet=TRUE))
 }
+
+
 ```
 
+```
