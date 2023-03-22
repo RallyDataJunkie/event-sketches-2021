@@ -2,7 +2,7 @@
 title: "`r params$doc_title`"
 subtitle: "A RallyDataJunkie Adventure"
 author: "Tony Hirst"
-description: "Stage route analysis, WRC Rally Portugal, 2021"
+description: "Stage route analysis, WRC EKO Acropolis Rally Greece, 2022"
 knit: "bookdown::render_book"
 site: bookdown::bookdown_site
 date: "Last generated on `r format(Sys.time(), '%d %B, %Y')`"
@@ -15,11 +15,11 @@ params:
 
 # Preface {-}
 
-Automatically generated stage analyses of stages on *WRC Rally Portugal, 2021*.
+Automatically generated stage analyses of stages on *WRC EKO Acropolis Rally Greece, 2022*.
 
 Based on analysis of KML route files downloaded from the WRC website.
 
-To discuss / critique / comment on these analyses, please use the [discussion forum](https://github.com/RallyDataJunkie/portugal_2021_route/discussions/).
+To discuss / critique / comment on these analyses, please use the [discussion forum](https://github.com/RallyDataJunkie/rallydatajunkie.github.io/discussions).
 
 For a guide to the code used to generate the stage reports, see [*Visualising WRC Rally Stages*](https://rallydatajunkie.com/visualising-rally-stages/).
 
