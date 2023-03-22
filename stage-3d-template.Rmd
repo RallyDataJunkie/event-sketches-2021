@@ -1,0 +1,155 @@
+```{r}
+knitr::opts_chunk$set(fig.path = paste0("images/stage-",i))
+```
+
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+library(rayshader)
+library(raster)
+
+route_index = {{route_i}}
+```
+
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+#route_index=4
+stage_geojson_ = geojson_sf[route_index,]
+
+```
+
+# `r route_name` - 3D Map
+
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+library(sf)
+
+lonlat2UTM_hemisphere <- function(lonlat) {
+    ifelse(lonlat[1] > 0, "north", "south")
+}
+
+lonlat2UTMzone = function(lonlat) {
+  utm = (floor((lonlat[1] + 180) / 6) %% 60) + 1
+  if(lonlat[2] > 0) {
+    utm + 32600
+  } else{
+    utm + 32700
+  }
+}
+
+# Grab a copy of the original projection
+original_crs = st_crs(geojson_sf[1,])
+
+# Find the UTM zone for a sample a point on the route
+crs_zone = lonlat2UTMzone(c(st_coordinates(stage_geojson_)[1,1],
+                            st_coordinates(stage_geojson_)[1,2]))
+
+# Create the projection string
+utm_pro4_string = st_crs(crs_zone)$proj4string
+#"+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs"
+# units in meters e.g. https://epsg.io/32632
+
+# Transform the route projection
+utm_route = st_transform(stage_geojson_,
+                         crs = st_crs(utm_pro4_string))
+
+
+# Generate buffered routes in UTM and longlat projections
+buffer_margin_1km = units::set_units(1000, m)
+buffer_margin_50m = units::set_units(50, m)
+use_buffer_margin = buffer_margin_50m
+
+zscalemodifier = 0.9 # <1 magnifies the y-scale
+zscale_asint = TRUE
+
+buffered_route_utm <- st_buffer(utm_route, use_buffer_margin)
+buffered_route <- st_transform(buffered_route_utm, original_crs)
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+stage_bbox = sf::st_bbox(buffered_route)
+
+#route_name = geojson_sf[route_index,]$name
+
+ex.df <- data.frame(x= c(stage_bbox[['xmin']], stage_bbox[['xmax']]), 
+                    y= c(stage_bbox[['ymin']], stage_bbox[['ymax']]))
+#ex.df
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+library(raster)
+library(elevatr)
+
+# The zoom level, z, impacts on how long it takes to download the imagery
+# z ranges from 1 to 14
+# https://www.rdocumentation.org/packages/elevatr/versions/0.3.4/topics/get_elev_raster
+prj_dd <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+elev_img <- get_elev_raster(ex.df, prj = prj_dd, z = 12, clip = "bbox")
+#elev_img <- get_elev_raster(as(geojson_sf[1,],'Spatial'), z = 12, clip = "bbox")
+#elev_img
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+#raster::plot(elev_img)
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+stage_tif = "stage_elevation.tif"
+
+# Write the data to an elevation data raster tif
+raster::writeRaster(elev_img, stage_tif, overwrite= TRUE)
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+# Get the natural zscale
+auto_zscale = geoviz::raster_zscale(elev_img)
+
+auto_zscale = auto_zscale * zscalemodifier
+if (zscale_asint)
+  auto_zscale = floor(auto_zscale)
+
+# Note we can pass in a file name or a raster object
+elmat = raster_to_matrix(stage_tif) 
+
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+library(rgl)
+
+options(rgl.useNULL = FALSE,
+        rgl.printRglwidget = FALSE)
+
+#rgl::rgl.open()
+rgl::clear3d()
+
+```
+```{r results=FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+
+buffered_route_sp = as(buffered_route, 'Spatial')
+
+elmat2 <- crop(raster(stage_tif), extent(buffered_route_sp))
+elmat3 <- mask(elmat2, buffered_route_sp)
+elmat4 = raster_to_matrix(elmat3) 
+
+library(geoviz) # For slippy_overlay
+
+# TO DO - broken?
+#overlay_image_terrain <- slippy_overlay(elev_img, 
+#                                        image_source = "stamen",
+#                                        image_type = "terrain",
+#                                        png_opacity = 0.9)
+
+yellow_route_buffer = generate_line_overlay(stage_geojson_,
+                                    extent = extent(elmat2),
+                                    heightmap = elmat4,
+                                    linewidth = 5, color="red")
+elmat4 %>%
+  sphere_shade(sunangle = -45, texture = "bw") %>%
+#  add_overlay(overlay_image_terrain) %>%
+  add_water(detect_water(elmat, progbar = FALSE),
+                        color = "desert")  %>%
+  add_overlay( yellow_route_buffer ) %>%
+  plot_3d(elmat4, solid=TRUE,
+          zscale=auto_zscale)
+
+r = rgl::rglwidget()
+widget_fn = paste0('images/widget_3d_',route_index,'.html')
+htmlwidgets::saveWidget(r, widget_fn)
+```
+
+*You should be able to zoom in and out into the model (two finger drag on my trackpad; not sure what on other input devices), as well as click and drag to rotate the model.*
+
+```{r route-3d-map-{{route_i}}, echo=FALSE, message=FALSE, warning=FALSE}
+htmltools::includeHTML(widget_fn)
+```
+
