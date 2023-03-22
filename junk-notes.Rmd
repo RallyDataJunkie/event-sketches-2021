@@ -1,0 +1,68 @@
+```{r}
+entry_splits = js_splits$entrySplitPointTimes
+
+# Get an example driver
+entryId = 21532
+car_packedsplits = entry_splits[entry_splits['entryId']==entryId,]
+
+car_packedsplits
+```
+
+Get split times for the driver:
+
+```{r}
+car_packedsplits$splitPointTimes[[1]]
+```
+
+Get the splits for the driver in wide form:
+
+```{r}
+library(tidyr)
+
+spread(car_packedsplits$splitPointTimes[[1]][,c('entryId',
+                                                'splitPointId',
+                                                'elapsedDurationMs')], 
+       key = splitPointId,
+       value = elapsedDurationMs)
+
+```
+```{r}
+js_splits$splitPoints$splitPointId
+```
+
+```{r}
+library(dplyr)
+
+wide_splits = function(packedsplits){
+  cols = c('entryId', 'splitPointId', 'elapsedDurationS')
+  
+  # Convert to s
+  packedsplits$elapsedDurationS = packedsplits$elapsedDurationMs/1000
+  
+  w = spread(packedsplits[,cols],
+             key = splitPointId,
+             value = elapsedDurationS)
+  w
+}
+
+#split_cols =  as.character(js_splits$splitPoints$splitPointId)
+
+# Order split points
+split_cols =  as.character(arrange(js_splits$splitPoints,distance)$splitPointId)
+
+
+get_splits_wide = function(entry_splits, split_cols){
+  entry_splits_ = drop_na(entry_splits)
+
+  entry_splits_wide = entry_splits_ %>%
+                        rowwise() %>% 
+                        mutate(wide_splits(splitPointTimes)) %>%
+                        select(c('entryId', split_cols))
+  
+  # If we don't cast it's a non-rankable rowwise df
+  as.data.frame(entry_splits_wide)
+}
+
+entry_splits_wide = get_splits_wide(entry_splits, split_cols)
+entry_splits_wide
+```
